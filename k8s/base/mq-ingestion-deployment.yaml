@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mq-ingestion
+  namespace: banking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mq-ingestion
+  template:
+    metadata:
+      labels:
+        app: mq-ingestion
+        app.kubernetes.io/part-of: kafka-banking
+    spec:
+      containers:
+        - name: mq-ingestion
+          image: ghcr.io/anchalkohli/mq-ingestion-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: banking-config
+            - secretRef:
+                name: banking-secrets
+          env:
+            - name: APP_KAFKA_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: APP_KAFKA_RAW_TOPIC
+            - name: SPRING_APPLICATION_NAME
+              value: mq-ingestion
+            - name: SERVER_PORT
+              value: "8081"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 45
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mq-ingestion
+  namespace: banking
+spec:
+  selector:
+    app: mq-ingestion
+  ports:
+    - port: 8081
+      targetPort: 8081
