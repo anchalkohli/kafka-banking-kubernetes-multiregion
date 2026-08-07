@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dlq-replay
+  namespace: banking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dlq-replay
+  template:
+    metadata:
+      labels:
+        app: dlq-replay
+        app.kubernetes.io/part-of: kafka-banking
+    spec:
+      containers:
+        - name: dlq-replay
+          image: ghcr.io/anchalkohli/dlq-replay-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - configMapRef:
+                name: banking-config
+          env:
+            - name: SERVER_PORT
+              value: "8085"
+            - name: KEYCLOAK_ISSUER_URI
+              value: http://keycloak:8080/realms/banking
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8085
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8085
+            initialDelaySeconds: 45
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dlq-replay
+  namespace: banking
+spec:
+  selector:
+    app: dlq-replay
+  ports:
+    - port: 8085
+      targetPort: 8085
