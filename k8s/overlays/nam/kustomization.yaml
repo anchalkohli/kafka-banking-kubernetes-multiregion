@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: banking-nam
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: Namespace
+      name: banking
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: banking-nam
+configMapGenerator:
+  - name: banking-config
+    behavior: replace
+    literals:
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - APP_KAFKA_REGION=NAM
+      - APP_KAFKA_RAW_TOPIC=raw-payments-nam
+      - APP_KAFKA_OUTPUT_TOPIC=json-payments-nam
+      - APP_KAFKA_DLQ_TOPIC=dlq-payments-nam
+      - KAFKA_CONSUMER_GROUP=payment-processor-nam
+      - IBM_MQ_QUEUE_MANAGER=QM1
+      - IBM_MQ_CHANNEL=DEV.APP.SVRCONN
+      - IBM_MQ_CONN_NAME=ibm-mq-nam:1414
+      - IBM_MQ_QUEUE=PAYMENT.QUEUE.NAM
+generatorOptions:
+  disableNameSuffixHash: true
