@@ -1,0 +1,32 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mq-ingestion
+  namespace: banking
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mq-ingestion
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kafka-processor
+  namespace: banking
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: kafka-processor
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dlq-replay
+  namespace: banking
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: dlq-replay
