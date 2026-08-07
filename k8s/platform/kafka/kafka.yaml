@@ -5,12 +5,16 @@ metadata:
   namespace: banking
 spec:
   clusterIP: None
+  publishNotReadyAddresses: true
   selector:
     app: kafka
   ports:
     - name: broker
       port: 9092
       targetPort: 9092
+    - name: controller
+      port: 9093
+      targetPort: 9093
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -32,13 +36,23 @@ spec:
       containers:
         - name: kafka
           image: bitnami/kafka:3.7
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              export KAFKA_CFG_NODE_ID="${HOSTNAME##*-}"
+              export KAFKA_CFG_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.kafka.${POD_NAMESPACE}.svc.cluster.local:9092"
+              exec /opt/bitnami/scripts/kafka/run.sh
           ports:
-            - containerPort: 9092
+            - name: broker
+              containerPort: 9092
+            - name: controller
+              containerPort: 9093
           env:
-            - name: KAFKA_CFG_NODE_ID
+            - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
-                  fieldPath: metadata.annotations['kafka-node-id']
+                  fieldPath: metadata.namespace
             - name: KAFKA_CFG_PROCESS_ROLES
               value: broker,controller
             - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
@@ -47,12 +61,27 @@ spec:
               value: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
             - name: KAFKA_CFG_LISTENERS
               value: PLAINTEXT://:9092,CONTROLLER://:9093
-            - name: KAFKA_CFG_ADVERTISED_LISTENERS
-              value: PLAINTEXT://kafka:9092
             - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
               value: 0@kafka-0.kafka:9093,1@kafka-1.kafka:9093,2@kafka-2.kafka:9093
             - name: KAFKA_KRAFT_CLUSTER_ID
               value: MkU3OEVBNTcwNTJENDM2Qk
+            - name: KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "3"
+            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "3"
+            - name: KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "2"
+            - name: KAFKA_CFG_DEFAULT_REPLICATION_FACTOR
+              value: "3"
+            - name: KAFKA_CFG_MIN_INSYNC_REPLICAS
+              value: "2"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
           volumeMounts:
             - name: data
               mountPath: /bitnami/kafka
