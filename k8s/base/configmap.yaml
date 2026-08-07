@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: banking-config
+  namespace: banking
+data:
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  APP_KAFKA_REGION: REGION
+  APP_KAFKA_RAW_TOPIC: raw-payments-region
+  APP_KAFKA_OUTPUT_TOPIC: json-payments-region
+  APP_KAFKA_DLQ_TOPIC: dlq-payments-region
+  KAFKA_CONSUMER_GROUP: payment-processor-region
+  IBM_MQ_QUEUE_MANAGER: QM1
+  IBM_MQ_CHANNEL: DEV.APP.SVRCONN
+  IBM_MQ_CONN_NAME: ibm-mq-region:1414
+  IBM_MQ_QUEUE: PAYMENT.QUEUE.REGION
