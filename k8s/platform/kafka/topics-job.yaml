@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topic-init
+  namespace: banking
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-topic-init
+          image: bitnami/kafka:3.7
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              for spec in \
+                raw-payments-emea:6 json-payments-emea:6 dlq-payments-emea:2 \
+                raw-payments-nam:3 json-payments-nam:3 dlq-payments-nam:2 \
+                raw-payments-aspac:3 json-payments-aspac:3 dlq-payments-aspac:2; do
+                topic="${spec%%:*}"
+                partitions="${spec##*:}"
+                kafka-topics.sh --bootstrap-server kafka:9092 \
+                  --create --if-not-exists \
+                  --topic "$topic" \
+                  --partitions "$partitions" \
+                  --replication-factor 3
+              done
