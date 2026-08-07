@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:mq-ingestion-service}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      acks: all
+      retries: 10
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 120000
+        request.timeout.ms: 30000
+        linger.ms: 5
+ibm:
+  mq:
+    queue-manager: ${IBM_MQ_QUEUE_MANAGER:QM1}
+    channel: ${IBM_MQ_CHANNEL:DEV.APP.SVRCONN}
+    conn-name: ${IBM_MQ_CONN_NAME:ibm-mq:1414}
+    queue: ${IBM_MQ_QUEUE:PAYMENT.QUEUE}
+    user: ${IBM_MQ_USER:app}
+    password: ${IBM_MQ_PASSWORD:change-me}
+app:
+  region: ${APP_KAFKA_REGION:EMEA}
+  kafka:
+    topic: ${APP_KAFKA_TOPIC:raw-payments-emea}
+  jms:
+    concurrency: ${SPRING_JMS_LISTENER_CONCURRENCY:3-6}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

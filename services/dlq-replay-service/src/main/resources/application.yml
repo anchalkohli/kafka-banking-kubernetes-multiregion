@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8085}
+  shutdown: graceful
+spring:
+  application:
+    name: dlq-replay-service
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://keycloak:8080/realms/banking}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

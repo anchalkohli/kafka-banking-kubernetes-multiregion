@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: banking
 resources:
   - namespace.yaml
+  - rbac.yaml
   - configmap.yaml
   - secret-example.yaml
   - mq-ingestion-deployment.yaml

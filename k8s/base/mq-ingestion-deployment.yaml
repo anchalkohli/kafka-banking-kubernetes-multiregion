@@ -5,6 +5,11 @@ metadata:
   namespace: banking
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: mq-ingestion
@@ -14,10 +19,29 @@ spec:
         app: mq-ingestion
         app.kubernetes.io/part-of: kafka-banking
     spec:
+      serviceAccountName: banking-app
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mq-ingestion
       containers:
         - name: mq-ingestion
-          image: ghcr.io/anchalkohli/mq-ingestion-service:latest
+          image: ghcr.io/anchalkohli/kafka-banking-mq-ingestion:main
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 8081
           envFrom:
@@ -42,18 +66,28 @@ spec:
             limits:
               cpu: "1"
               memory: 768Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            failureThreshold: 30
+            periodSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8081
-            initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8081
-            initialDelaySeconds: 45
             periodSeconds: 20
+            timeoutSeconds: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh","-c","sleep 10"]
 ---
 apiVersion: v1
 kind: Service

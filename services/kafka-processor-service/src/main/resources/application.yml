@@ -1,0 +1,45 @@
+server:
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
+spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:kafka-processor-service}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:payment-processor-emea}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        isolation.level: read_committed
+        max.poll.records: 500
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 10
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 120000
+    listener:
+      ack-mode: record
+app:
+  region: ${APP_KAFKA_REGION:EMEA}
+  kafka:
+    input-topic: ${APP_KAFKA_INPUT_TOPIC:raw-payments-emea}
+    output-topic: ${APP_KAFKA_OUTPUT_TOPIC:json-payments-emea}
+    dlq-topic: ${APP_KAFKA_DLQ_TOPIC:dlq-payments-emea}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
