@@ -14,7 +14,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -22,29 +22,32 @@ import org.springframework.stereotype.Service;
 @Service
 public class KafkaReplayService {
     private static final Set<String> ALLOWED_REGIONS = Set.of("emea", "nam", "aspac");
-    private final String bootstrapServers;
+    private final KafkaProperties kafkaProperties;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    public KafkaReplayService(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
-        this.bootstrapServers = bootstrapServers;
-        Map<String, Object> producerProps = Map.of(
-            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
-            ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-            ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-            ProducerConfig.ACKS_CONFIG, "all",
-            ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true
-        );
+    public KafkaReplayService(KafkaProperties kafkaProperties) {
+        this.kafkaProperties = kafkaProperties;
+
+        Map<String, Object> producerProps = kafkaProperties.buildProducerProperties();
+        producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        producerProps.put(ProducerConfig.ACKS_CONFIG, "all");
+        producerProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+
         this.kafkaTemplate = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producerProps));
     }
 
     public int replayRegion(String requestedRegion) {
         String region = requestedRegion.toLowerCase(Locale.ROOT);
-        if (!ALLOWED_REGIONS.contains(region)) throw new IllegalArgumentException("Unsupported region: " + requestedRegion);
+        if (!ALLOWED_REGIONS.contains(region)) {
+            throw new IllegalArgumentException("Unsupported region: " + requestedRegion);
+        }
+
         String sourceTopic = "dlq-payments-" + region;
         String targetTopic = "raw-payments-" + region;
 
         Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.putAll(kafkaProperties.buildConsumerProperties());
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "manual-dlq-replay-" + region);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
@@ -53,19 +56,27 @@ public class KafkaReplayService {
 
         int replayed = 0;
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props)) {
-            List<TopicPartition> partitions = consumer.partitionsFor(sourceTopic).stream().map(info -> new TopicPartition(sourceTopic, info.partition())).toList();
+            List<TopicPartition> partitions = consumer.partitionsFor(sourceTopic).stream()
+                    .map(info -> new TopicPartition(sourceTopic, info.partition()))
+                    .toList();
             consumer.assign(partitions);
             consumer.seekToBeginning(partitions);
             Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
+
             while (true) {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(1));
                 for (ConsumerRecord<String, String> record : records) {
                     kafkaTemplate.send(targetTopic, record.key(), record.value()).get();
                     replayed++;
                 }
-                if (!records.isEmpty()) consumer.commitSync();
-                boolean complete = partitions.stream().allMatch(tp -> consumer.position(tp) >= endOffsets.get(tp));
-                if (complete) break;
+                if (!records.isEmpty()) {
+                    consumer.commitSync();
+                }
+                boolean complete = partitions.stream()
+                        .allMatch(tp -> consumer.position(tp) >= endOffsets.get(tp));
+                if (complete) {
+                    break;
+                }
             }
         } catch (Exception ex) {
             throw new IllegalStateException("DLQ replay failed for region " + region, ex);
