@@ -47,11 +47,21 @@ spec:
           envFrom:
             - configMapRef:
                 name: banking-config
+            - secretRef:
+                name: banking-secrets
           env:
             - name: SERVER_PORT
               value: "8085"
             - name: KEYCLOAK_ISSUER_URI
               value: http://keycloak:8080/realms/banking
+            - name: KAFKA_SSL_TRUSTSTORE_LOCATION
+              value: /etc/banking/tls/kafka-truststore.p12
+            - name: KAFKA_SSL_KEYSTORE_LOCATION
+              value: /etc/banking/tls/kafka-keystore.p12
+          volumeMounts:
+            - name: banking-tls
+              mountPath: /etc/banking/tls
+              readOnly: true
           resources:
             requests:
               cpu: 200m
@@ -77,6 +87,12 @@ spec:
               port: 8085
             periodSeconds: 20
             timeoutSeconds: 3
+      volumes:
+        - name: banking-tls
+          secret:
+            secretName: banking-tls
+            optional: true
+            defaultMode: 0400
 ---
 apiVersion: v1
 kind: Service
