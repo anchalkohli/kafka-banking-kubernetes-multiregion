@@ -59,6 +59,18 @@ spec:
               value: mq-ingestion
             - name: SERVER_PORT
               value: "8081"
+            - name: IBM_MQ_SSL_TRUSTSTORE_LOCATION
+              value: /etc/banking/tls/mq-truststore.p12
+            - name: IBM_MQ_SSL_KEYSTORE_LOCATION
+              value: /etc/banking/tls/mq-keystore.p12
+            - name: KAFKA_SSL_TRUSTSTORE_LOCATION
+              value: /etc/banking/tls/kafka-truststore.p12
+            - name: KAFKA_SSL_KEYSTORE_LOCATION
+              value: /etc/banking/tls/kafka-keystore.p12
+          volumeMounts:
+            - name: banking-tls
+              mountPath: /etc/banking/tls
+              readOnly: true
           resources:
             requests:
               cpu: 250m
@@ -88,6 +100,12 @@ spec:
             preStop:
               exec:
                 command: ["sh","-c","sleep 10"]
+      volumes:
+        - name: banking-tls
+          secret:
+            secretName: banking-tls
+            optional: true
+            defaultMode: 0400
 ---
 apiVersion: v1
 kind: Service
