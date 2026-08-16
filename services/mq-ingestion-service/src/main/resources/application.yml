@@ -40,6 +40,12 @@ ibm:
       cipher-suite: ${IBM_MQ_SSL_CIPHER_SUITE:}
       peer-name: ${IBM_MQ_SSL_PEER_NAME:}
       fips-required: ${IBM_MQ_SSL_FIPS_REQUIRED:false}
+      trust-store-location: ${IBM_MQ_SSL_TRUSTSTORE_LOCATION:}
+      trust-store-password: ${IBM_MQ_SSL_TRUSTSTORE_PASSWORD:}
+      trust-store-type: ${IBM_MQ_SSL_TRUSTSTORE_TYPE:PKCS12}
+      key-store-location: ${IBM_MQ_SSL_KEYSTORE_LOCATION:}
+      key-store-password: ${IBM_MQ_SSL_KEYSTORE_PASSWORD:}
+      key-store-type: ${IBM_MQ_SSL_KEYSTORE_TYPE:PKCS12}
 app:
   region: ${APP_KAFKA_REGION:EMEA}
   kafka:
