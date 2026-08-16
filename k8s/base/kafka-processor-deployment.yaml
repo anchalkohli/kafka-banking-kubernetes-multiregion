@@ -47,6 +47,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: banking-config
+            - secretRef:
+                name: banking-secrets
           env:
             - name: APP_KAFKA_INPUT_TOPIC
               valueFrom:
@@ -55,6 +57,14 @@ spec:
                   key: APP_KAFKA_RAW_TOPIC
             - name: SERVER_PORT
               value: "8082"
+            - name: KAFKA_SSL_TRUSTSTORE_LOCATION
+              value: /etc/banking/tls/kafka-truststore.p12
+            - name: KAFKA_SSL_KEYSTORE_LOCATION
+              value: /etc/banking/tls/kafka-keystore.p12
+          volumeMounts:
+            - name: banking-tls
+              mountPath: /etc/banking/tls
+              readOnly: true
           resources:
             requests:
               cpu: 300m
@@ -84,6 +94,12 @@ spec:
             preStop:
               exec:
                 command: ["sh","-c","sleep 10"]
+      volumes:
+        - name: banking-tls
+          secret:
+            secretName: banking-tls
+            optional: true
+            defaultMode: 0400
 ---
 apiVersion: v1
 kind: Service
