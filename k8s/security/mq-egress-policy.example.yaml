@@ -1,0 +1,22 @@
+# Copy this file into the target regional overlay and replace MQ_CIDR.
+# Do not apply this example unchanged. Standard Kubernetes NetworkPolicy
+# selects external destinations by CIDR rather than DNS name.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mq-ingestion-to-external-ibm-mq
+  namespace: banking
+spec:
+  podSelector:
+    matchLabels:
+      app: mq-ingestion
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            # Replace with the smallest bank-approved CIDR containing the regional MQ endpoint.
+            cidr: 192.0.2.0/24
+      ports:
+        - protocol: TCP
+          port: 1414
