@@ -15,6 +15,8 @@ public record ReplayJob(
         String reason,
         String incidentId,
         String requestedBy,
+        String approvedBy,
+        Instant approvedAt,
         String status,
         int replayedCount,
         String errorMessage,
