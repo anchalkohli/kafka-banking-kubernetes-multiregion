@@ -26,21 +26,21 @@ public class ReplayController {
     }
 
     @PostMapping("/{region}")
-    @PreAuthorize("hasRole('dlq-admin')")
-    public ResponseEntity<ReplayJob> replay(@PathVariable String region,
-                                            @Valid @RequestBody ReplayCommand command,
-                                            Authentication authentication) {
-        return ResponseEntity.ok(replayService.createAndRun(region, command, authentication.getName()));
+    @PreAuthorize("hasAnyRole('dlq-maker','dlq-admin')")
+    public ResponseEntity<ReplayJob> requestReplay(@PathVariable String region,
+                                                   @Valid @RequestBody ReplayCommand command,
+                                                   Authentication authentication) {
+        return ResponseEntity.ok(replayService.createRequest(region, command, authentication.getName()));
     }
 
-    @PostMapping("/jobs/{jobId}/resume")
-    @PreAuthorize("hasRole('dlq-admin')")
-    public ResponseEntity<ReplayJob> resume(@PathVariable UUID jobId, Authentication authentication) {
-        return ResponseEntity.ok(replayService.resume(jobId, authentication.getName()));
+    @PostMapping("/jobs/{jobId}/approve")
+    @PreAuthorize("hasAnyRole('dlq-checker','dlq-admin')")
+    public ResponseEntity<ReplayJob> approve(@PathVariable UUID jobId, Authentication authentication) {
+        return ResponseEntity.ok(replayService.approve(jobId, authentication.getName()));
     }
 
     @GetMapping("/jobs/{jobId}")
-    @PreAuthorize("hasRole('dlq-admin')")
+    @PreAuthorize("hasAnyRole('dlq-maker','dlq-checker','dlq-admin')")
     public ResponseEntity<ReplayJob> status(@PathVariable UUID jobId) {
         return ResponseEntity.ok(replayService.get(jobId));
     }
