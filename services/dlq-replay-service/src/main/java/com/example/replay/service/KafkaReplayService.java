@@ -54,25 +54,25 @@ public class KafkaReplayService {
         this.kafkaTemplate = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(producerProps));
     }
 
-    public ReplayJob createAndRun(String requestedRegion, ReplayCommand command, String requestedBy) {
+    public ReplayJob createRequest(String requestedRegion, ReplayCommand command, String requestedBy) {
         String region = normalizeRegion(requestedRegion);
         validateCommand(command);
-        ReplayJob job = repository.create(region, command, requestedBy);
-        run(job.id());
-        return repository.find(job.id()).orElseThrow();
+        return repository.create(region, command, requestedBy);
     }
 
-    public ReplayJob resume(UUID jobId, String requestedBy) {
-        ReplayJob job = repository.find(jobId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Replay job not found"));
-        if (!job.requestedBy().equals(requestedBy)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the original requester may resume this replay job");
+    public ReplayJob approve(UUID jobId, String approvedBy) {
+        ReplayJob job = get(jobId);
+        if (!"PENDING_APPROVAL".equals(job.status())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Replay job is not awaiting approval");
         }
-        if (!Set.of("FAILED", "PENDING").contains(job.status())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only FAILED or PENDING replay jobs can be resumed");
+        if (job.requestedBy().equals(approvedBy)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Maker-checker violation: requester cannot approve the same replay job");
         }
-        run(job.id());
-        return repository.find(job.id()).orElseThrow();
+        if (!repository.approve(jobId, approvedBy)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Replay job approval state changed concurrently");
+        }
+        return get(jobId);
     }
 
     public ReplayJob get(UUID jobId) {
@@ -80,11 +80,18 @@ public class KafkaReplayService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Replay job not found"));
     }
 
-    private void run(UUID jobId) {
-        ReplayJob job = repository.find(jobId).orElseThrow();
+    /**
+     * Executes an already approved replay. This method is intended for the finite Kubernetes Job worker,
+     * not for the long-running API Deployment.
+     */
+    public ReplayJob executeApproved(UUID jobId) {
+        ReplayJob job = get(jobId);
+        if (!"APPROVED".equals(job.status())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Replay job must be APPROVED before execution");
+        }
+
         String sourceTopic = "dlq-payments-" + job.region();
         String targetTopic = "raw-payments-" + job.region();
-
         long nextOffset = job.nextOffset();
         int replayed = job.replayedCount();
 
@@ -95,7 +102,9 @@ public class KafkaReplayService {
             }
 
             try {
-                repository.markRunning(jobId);
+                if (!repository.markRunningIfApproved(jobId)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Replay job is no longer approved for execution");
+                }
 
                 Properties props = new Properties();
                 props.putAll(kafkaProperties.buildConsumerProperties());
@@ -170,6 +179,7 @@ public class KafkaReplayService {
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to coordinate DLQ replay", ex);
         }
+        return get(jobId);
     }
 
     private String normalizeRegion(String requestedRegion) {
@@ -187,7 +197,7 @@ public class KafkaReplayService {
         long requestedRange = command.endOffsetExclusive() - command.startOffset();
         if (requestedRange > command.maxRecords()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Requested offset range exceeds maxRecords safety cap");
+                    "Requested offset range exceeds maxRecords; submit a smaller bounded replay request");
         }
     }
 
