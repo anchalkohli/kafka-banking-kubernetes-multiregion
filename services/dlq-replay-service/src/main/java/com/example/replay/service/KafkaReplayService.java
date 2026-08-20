@@ -66,7 +66,6 @@ public class KafkaReplayService {
         ReplayJob job = repository.find(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Replay job not found"));
         if (!job.requestedBy().equals(requestedBy)) {
-            // Authorization role is already enforced; this additional check prevents accidental cross-operator resume.
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the original requester may resume this replay job");
         }
         if (!Set.of("FAILED", "PENDING").contains(job.status())) {
@@ -184,6 +183,11 @@ public class KafkaReplayService {
     private void validateCommand(ReplayCommand command) {
         if (command.startOffset() >= command.endOffsetExclusive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "startOffset must be lower than endOffsetExclusive");
+        }
+        long requestedRange = command.endOffsetExclusive() - command.startOffset();
+        if (requestedRange > command.maxRecords()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Requested offset range exceeds maxRecords safety cap");
         }
     }
 
