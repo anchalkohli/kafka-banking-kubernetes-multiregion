@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dlq-replay-REPLACE_JOB_ID_SHORT
+  namespace: banking
+  labels:
+    app: dlq-replay-worker
+    app.kubernetes.io/part-of: kafka-banking
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: dlq-replay-worker
+        app.kubernetes.io/part-of: kafka-banking
+    spec:
+      restartPolicy: Never
+      serviceAccountName: banking-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: replay-worker
+          image: ghcr.io/anchalkohli/kafka-banking-dlq-replay:main
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - configMapRef:
+                name: banking-config
+            - secretRef:
+                name: banking-secrets
+          env:
+            - name: SPRING_MAIN_WEB_APPLICATION_TYPE
+              value: none
+            - name: REPLAY_EXECUTOR_ENABLED
+              value: "true"
+            - name: REPLAY_JOB_ID
+              value: "REPLACE_WITH_APPROVED_JOB_UUID"
+            - name: KAFKA_SSL_TRUSTSTORE_LOCATION
+              value: /etc/banking/tls/kafka-truststore.p12
+            - name: KAFKA_SSL_KEYSTORE_LOCATION
+              value: /etc/banking/tls/kafka-keystore.p12
+          volumeMounts:
+            - name: banking-tls
+              mountPath: /etc/banking/tls
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: banking-tls
+          secret:
+            secretName: banking-tls
+            optional: true
+            defaultMode: 0400
