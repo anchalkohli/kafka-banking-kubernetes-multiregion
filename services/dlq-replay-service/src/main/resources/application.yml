@@ -6,6 +6,18 @@ spring:
     name: dlq-replay-service
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  datasource:
+    url: ${REPLAY_DB_URL}
+    username: ${REPLAY_DB_USER}
+    password: ${REPLAY_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${REPLAY_DB_POOL_SIZE:5}
+      minimum-idle: 1
+      connection-timeout: 10000
+      validation-timeout: 5000
+  sql:
+    init:
+      mode: always
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
     properties:
