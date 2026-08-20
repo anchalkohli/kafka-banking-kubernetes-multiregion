@@ -25,7 +25,7 @@ public class ReplayJobRepository {
                 insert into replay_job(id, region, partition_no, start_offset, end_offset_exclusive, next_offset,
                                        max_records, records_per_second, reason, incident_id, requested_by,
                                        status, replayed_count, created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL', 0, ?, ?)
                 """,
                 id, region, command.partition(), command.startOffset(), command.endOffsetExclusive(), command.startOffset(),
                 command.maxRecords(), command.recordsPerSecond(), command.reason(), command.incidentId(), requestedBy,
@@ -36,18 +36,32 @@ public class ReplayJobRepository {
     public Optional<ReplayJob> find(UUID id) {
         return jdbc.query("select * from replay_job where id = ?", rs -> {
             if (!rs.next()) return Optional.empty();
+            Timestamp approvedAt = rs.getTimestamp("approved_at");
             return Optional.of(new ReplayJob(
                     rs.getObject("id", UUID.class), rs.getString("region"), rs.getInt("partition_no"),
                     rs.getLong("start_offset"), rs.getLong("end_offset_exclusive"), rs.getLong("next_offset"),
                     rs.getInt("max_records"), rs.getInt("records_per_second"), rs.getString("reason"),
-                    rs.getString("incident_id"), rs.getString("requested_by"), rs.getString("status"),
+                    rs.getString("incident_id"), rs.getString("requested_by"), rs.getString("approved_by"),
+                    approvedAt == null ? null : approvedAt.toInstant(), rs.getString("status"),
                     rs.getInt("replayed_count"), rs.getString("error_message"),
                     rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant()));
         }, id);
     }
 
-    public void markRunning(UUID id) {
-        jdbc.update("update replay_job set status='RUNNING', error_message=null, updated_at=now() where id=?", id);
+    public boolean approve(UUID id, String approvedBy) {
+        return jdbc.update("""
+                update replay_job
+                   set status='APPROVED', approved_by=?, approved_at=now(), error_message=null, updated_at=now()
+                 where id=? and status='PENDING_APPROVAL'
+                """, approvedBy, id) == 1;
+    }
+
+    public boolean markRunningIfApproved(UUID id) {
+        return jdbc.update("""
+                update replay_job
+                   set status='RUNNING', error_message=null, updated_at=now()
+                 where id=? and status='APPROVED'
+                """, id) == 1;
     }
 
     public void checkpoint(UUID id, long nextOffset, int replayedCount) {
