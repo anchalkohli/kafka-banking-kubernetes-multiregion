@@ -21,9 +21,17 @@ configMapGenerator:
       - APP_KAFKA_OUTPUT_TOPIC=json-payments-nam
       - APP_KAFKA_DLQ_TOPIC=dlq-payments-nam
       - KAFKA_CONSUMER_GROUP=payment-processor-nam
+      - KAFKA_SECURITY_PROTOCOL=PLAINTEXT
+      - KAFKA_SSL_TRUSTSTORE_TYPE=PKCS12
+      - KAFKA_SSL_KEYSTORE_TYPE=PKCS12
+      - KAFKA_SASL_MECHANISM=PLAIN
       - IBM_MQ_QUEUE_MANAGER=QM1
       - IBM_MQ_CHANNEL=DEV.APP.SVRCONN
       - IBM_MQ_CONN_NAME=ibm-mq-nam:1414
       - IBM_MQ_QUEUE=PAYMENT.QUEUE.NAM
+      - IBM_MQ_SSL_ENABLED=false
+      - IBM_MQ_SSL_FIPS_REQUIRED=false
+      - IBM_MQ_SSL_TRUSTSTORE_TYPE=PKCS12
+      - IBM_MQ_SSL_KEYSTORE_TYPE=PKCS12
 generatorOptions:
   disableNameSuffixHash: true
