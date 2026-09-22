@@ -50,11 +50,6 @@ spec:
             - secretRef:
                 name: banking-secrets
           env:
-            - name: APP_KAFKA_TOPIC
-              valueFrom:
-                configMapKeyRef:
-                  name: banking-config
-                  key: APP_KAFKA_RAW_TOPIC
             - name: SPRING_APPLICATION_NAME
               value: mq-ingestion
             - name: SERVER_PORT
