@@ -11,70 +11,64 @@ import java.util.regex.Pattern;
 @Component
 public class MessageClassifier {
     private static final Pattern SWIFT_BLOCK_2 = Pattern.compile("\\{2:([IO])(\\d{3})([^}]*)}");
-    private static final Pattern MX_DOCUMENT = Pattern.compile(
-            "<(?:\\w+:)?(pacs\\.\\d{3}\\.\\d{3}\\.\\d{2}|camt\\.\\d{3}\\.\\d{3}\\.\\d{2})",
+    private static final Pattern MX_NAMESPACE = Pattern.compile(
+            "urn:iso:std:iso:20022:tech:xsd:((?:pacs|camt)\\.\\d{3}\\.\\d{3}\\.\\d{2})",
             Pattern.CASE_INSENSITIVE);
 
-    private static final Set<String> PAYMENT_MT = Set.of(
-            "MT101", "MT102", "MT103", "MT104", "MT202", "MT205");
-    private static final Set<String> REPORTING_MT = Set.of(
-            "MT900", "MT910", "MT940", "MT942", "MT950");
+    private static final Set<String> PAYMENT_MT = Set.of("MT101", "MT102", "MT103", "MT104", "MT202", "MT205");
+    private static final Set<String> REPORTING_MT = Set.of("MT900", "MT910", "MT940", "MT942", "MT950");
 
     public MessageClassification classify(String payload) {
-        if (payload == null || payload.isBlank()) {
-            return unknown();
-        }
+        if (payload == null || payload.isBlank()) return unknown();
 
         Matcher mt = SWIFT_BLOCK_2.matcher(payload);
         if (mt.find()) {
+            String direction = mt.group(1);
             String type = "MT" + mt.group(2);
-            String networkPriority = extractSwiftNetworkPriority(mt.group(3));
-            String route = routeMt(type, networkPriority);
-            String businessPriority = "critical".equals(route) ? "HIGH"
-                    : "reporting".equals(route) ? "LOW" : "STANDARD";
-            return new MessageClassification("SWIFT_MT", type, networkPriority, businessPriority, route);
+            String priority = swiftPriority(direction, mt.group(3));
+            String route = routeMt(type, priority);
+            return new MessageClassification("SWIFT_MT", type, priority,
+                    route.equals("critical") ? "HIGH" : route.equals("reporting") ? "LOW" : "STANDARD", route);
         }
 
-        Matcher mx = MX_DOCUMENT.matcher(payload);
+        Matcher mx = MX_NAMESPACE.matcher(payload);
         if (mx.find()) {
             String type = mx.group(1).toLowerCase(Locale.ROOT);
             String route = type.startsWith("pacs.") ? "standard" : "reporting";
             return new MessageClassification("ISO_20022", type, "NA",
-                    "reporting".equals(route) ? "LOW" : "STANDARD", route);
+                    route.equals("reporting") ? "LOW" : "STANDARD", route);
         }
 
         String trimmed = payload.stripLeading();
         if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
             return new MessageClassification("JSON", "UNKNOWN", "NA", "STANDARD", "standard");
         }
-
         return unknown();
     }
 
-    private String routeMt(String type, String networkPriority) {
-        if (REPORTING_MT.contains(type)) {
-            return "reporting";
-        }
-        if (PAYMENT_MT.contains(type)) {
-            // U = urgent FIN network priority. Message type alone does not make a payment critical.
-            return "U".equals(networkPriority) ? "critical" : "standard";
-        }
+    private String routeMt(String type, String priority) {
+        if (REPORTING_MT.contains(type)) return "reporting";
+        if (PAYMENT_MT.contains(type)) return "U".equals(priority) ? "critical" : "standard";
         return "quarantine";
     }
 
-    private String extractSwiftNetworkPriority(String block2Remainder) {
-        if (block2Remainder == null || block2Remainder.isBlank()) {
-            return "N";
+    private String swiftPriority(String direction, String remainder) {
+        if (remainder == null) return "N";
+        // FIN input block 2: receiver LT address (12 chars) followed by priority.
+        if ("I".equals(direction) && remainder.length() >= 13) {
+            char p = Character.toUpperCase(remainder.charAt(12));
+            return validPriority(p) ? String.valueOf(p) : "N";
         }
-        // Input headers normally end with delivery-monitoring/obsolescence after priority.
-        // Search from the end to avoid interpreting BIC characters as priority.
-        for (int i = block2Remainder.length() - 1; i >= 0; i--) {
-            char c = Character.toUpperCase(block2Remainder.charAt(i));
-            if (c == 'U' || c == 'N' || c == 'S') {
-                return String.valueOf(c);
-            }
+        // FIN output block 2 ends with network priority in the standard envelope.
+        if ("O".equals(direction) && !remainder.isBlank()) {
+            char p = Character.toUpperCase(remainder.charAt(remainder.length() - 1));
+            return validPriority(p) ? String.valueOf(p) : "N";
         }
         return "N";
+    }
+
+    private boolean validPriority(char c) {
+        return c == 'U' || c == 'N' || c == 'S';
     }
 
     private MessageClassification unknown() {
