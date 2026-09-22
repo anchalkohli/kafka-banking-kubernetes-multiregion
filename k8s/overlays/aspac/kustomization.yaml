@@ -18,6 +18,10 @@ configMapGenerator:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - APP_KAFKA_REGION=ASPAC
       - APP_KAFKA_RAW_TOPIC=raw-payments-aspac
+      - APP_KAFKA_TOPIC_CRITICAL=raw-payments-critical-aspac
+      - APP_KAFKA_TOPIC_STANDARD=raw-payments-standard-aspac
+      - APP_KAFKA_TOPIC_REPORTING=raw-payments-reporting-aspac
+      - APP_KAFKA_TOPIC_QUARANTINE=raw-payments-quarantine-aspac
       - APP_KAFKA_OUTPUT_TOPIC=json-payments-aspac
       - APP_KAFKA_DLQ_TOPIC=dlq-payments-aspac
       - KAFKA_CONSUMER_GROUP=payment-processor-aspac

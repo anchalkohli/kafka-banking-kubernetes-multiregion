@@ -15,9 +15,9 @@ spec:
             - -ec
             - |
               for spec in \
-                raw-payments-emea:6 json-payments-emea:6 dlq-payments-emea:2 \
-                raw-payments-nam:3 json-payments-nam:3 dlq-payments-nam:2 \
-                raw-payments-aspac:3 json-payments-aspac:3 dlq-payments-aspac:2; do
+                raw-payments-emea:6 raw-payments-critical-emea:6 raw-payments-standard-emea:6 raw-payments-reporting-emea:3 raw-payments-quarantine-emea:2 json-payments-emea:6 dlq-payments-emea:2 \
+                raw-payments-nam:3 raw-payments-critical-nam:3 raw-payments-standard-nam:3 raw-payments-reporting-nam:2 raw-payments-quarantine-nam:2 json-payments-nam:3 dlq-payments-nam:2 \
+                raw-payments-aspac:3 raw-payments-critical-aspac:3 raw-payments-standard-aspac:3 raw-payments-reporting-aspac:2 raw-payments-quarantine-aspac:2 json-payments-aspac:3 dlq-payments-aspac:2; do
                 topic="${spec%%:*}"
                 partitions="${spec##*:}"
                 kafka-topics.sh --bootstrap-server kafka:9092 \

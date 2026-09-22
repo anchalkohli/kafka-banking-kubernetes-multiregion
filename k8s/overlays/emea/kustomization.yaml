@@ -18,6 +18,10 @@ configMapGenerator:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - APP_KAFKA_REGION=EMEA
       - APP_KAFKA_RAW_TOPIC=raw-payments-emea
+      - APP_KAFKA_TOPIC_CRITICAL=raw-payments-critical-emea
+      - APP_KAFKA_TOPIC_STANDARD=raw-payments-standard-emea
+      - APP_KAFKA_TOPIC_REPORTING=raw-payments-reporting-emea
+      - APP_KAFKA_TOPIC_QUARANTINE=raw-payments-quarantine-emea
       - APP_KAFKA_OUTPUT_TOPIC=json-payments-emea
       - APP_KAFKA_DLQ_TOPIC=dlq-payments-emea
       - KAFKA_CONSUMER_GROUP=payment-processor-emea
