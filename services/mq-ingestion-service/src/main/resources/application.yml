@@ -49,7 +49,11 @@ ibm:
 app:
   region: ${APP_KAFKA_REGION:EMEA}
   kafka:
-    topic: ${APP_KAFKA_TOPIC:raw-payments-emea}
+    topics:
+      critical: ${APP_KAFKA_TOPIC_CRITICAL:raw-payments-critical-${app.region}}
+      standard: ${APP_KAFKA_TOPIC_STANDARD:raw-payments-standard-${app.region}}
+      reporting: ${APP_KAFKA_TOPIC_REPORTING:raw-payments-reporting-${app.region}}
+      quarantine: ${APP_KAFKA_TOPIC_QUARANTINE:raw-payments-quarantine-${app.region}}
   jms:
     concurrency: ${SPRING_JMS_LISTENER_CONCURRENCY:3-6}
 management:
