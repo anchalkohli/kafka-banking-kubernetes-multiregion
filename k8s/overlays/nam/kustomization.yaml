@@ -18,6 +18,10 @@ configMapGenerator:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - APP_KAFKA_REGION=NAM
       - APP_KAFKA_RAW_TOPIC=raw-payments-nam
+      - APP_KAFKA_TOPIC_CRITICAL=raw-payments-critical-nam
+      - APP_KAFKA_TOPIC_STANDARD=raw-payments-standard-nam
+      - APP_KAFKA_TOPIC_REPORTING=raw-payments-reporting-nam
+      - APP_KAFKA_TOPIC_QUARANTINE=raw-payments-quarantine-nam
       - APP_KAFKA_OUTPUT_TOPIC=json-payments-nam
       - APP_KAFKA_DLQ_TOPIC=dlq-payments-nam
       - KAFKA_CONSUMER_GROUP=payment-processor-nam
