@@ -8,9 +8,12 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -22,6 +25,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -40,11 +44,14 @@ public class KafkaReplayService {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ReplayJobRepository repository;
     private final DataSource dataSource;
+    private final String legacyTargetTopicPattern;
 
-    public KafkaReplayService(KafkaProperties kafkaProperties, ReplayJobRepository repository, DataSource dataSource) {
+    public KafkaReplayService(KafkaProperties kafkaProperties, ReplayJobRepository repository, DataSource dataSource,
+                              @Value("${app.replay.legacy-target-topic-pattern:raw-payments-%s}") String legacyTargetTopicPattern) {
         this.kafkaProperties = kafkaProperties;
         this.repository = repository;
         this.dataSource = dataSource;
+        this.legacyTargetTopicPattern = legacyTargetTopicPattern;
 
         Map<String, Object> producerProps = kafkaProperties.buildProducerProperties();
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -91,7 +98,6 @@ public class KafkaReplayService {
         }
 
         String sourceTopic = "dlq-payments-" + job.region();
-        String targetTopic = "raw-payments-" + job.region();
         long nextOffset = job.nextOffset();
         int replayed = job.replayedCount();
 
@@ -152,7 +158,12 @@ public class KafkaReplayService {
                             }
 
                             throttle(nextAllowedSend);
-                            kafkaTemplate.send(targetTopic, record.key(), record.value()).get(30, TimeUnit.SECONDS);
+                            String targetTopic = resolveTargetTopic(record, job.region());
+                            ProducerRecord<String, String> replayRecord =
+                                    new ProducerRecord<>(targetTopic, record.key(), record.value());
+                            replayRecord.headers().add(new org.apache.kafka.common.header.internals.RecordHeader(
+                                    "x-replayed-from-dlq", sourceTopic.getBytes(StandardCharsets.UTF_8)));
+                            kafkaTemplate.send(replayRecord).get(30, TimeUnit.SECONDS);
                             replayed++;
                             nextOffset = record.offset() + 1;
                             nextAllowedSend = System.nanoTime() + nanosPerRecord;
@@ -180,6 +191,28 @@ public class KafkaReplayService {
             throw new IllegalStateException("Unable to coordinate DLQ replay", ex);
         }
         return get(jobId);
+    }
+
+    private String resolveTargetTopic(ConsumerRecord<String, String> record, String region) {
+        Header originalTopic = record.headers().lastHeader("x-original-topic");
+        if (originalTopic != null && originalTopic.value() != null && originalTopic.value().length > 0) {
+            String topic = new String(originalTopic.value(), StandardCharsets.UTF_8);
+            validateReplayTarget(topic, region);
+            return topic;
+        }
+
+        String fallback = String.format(legacyTargetTopicPattern, region);
+        validateReplayTarget(fallback, region);
+        return fallback;
+    }
+
+    private void validateReplayTarget(String topic, String region) {
+        String normalized = topic.toLowerCase(Locale.ROOT);
+        String regionLower = region.toLowerCase(Locale.ROOT);
+        if (!normalized.startsWith("raw-payments-") || !normalized.endsWith("-" + regionLower)) {
+            throw new IllegalArgumentException(
+                    "Refusing DLQ replay to unexpected target topic: " + topic);
+        }
     }
 
     private String normalizeRegion(String requestedRegion) {
