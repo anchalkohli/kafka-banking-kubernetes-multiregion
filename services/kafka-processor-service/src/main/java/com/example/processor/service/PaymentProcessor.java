@@ -2,6 +2,10 @@ package com.example.processor.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.header.internals.RecordHeader;
+
+import java.nio.charset.StandardCharsets;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -44,7 +48,16 @@ public class PaymentProcessor {
             normalized.put("rawMessage", record.value());
             kafkaTemplate.send(outputTopic, record.key(), objectMapper.writeValueAsString(normalized)).get();
         } catch (Exception ex) {
-            kafkaTemplate.send(dlqTopic, record.key(), record.value()).get();
+            ProducerRecord<String, String> dlqRecord = new ProducerRecord<>(dlqTopic, record.key(), record.value());
+            dlqRecord.headers().add(new RecordHeader("x-original-topic",
+                    record.topic().getBytes(StandardCharsets.UTF_8)));
+            dlqRecord.headers().add(new RecordHeader("x-original-partition",
+                    Integer.toString(record.partition()).getBytes(StandardCharsets.UTF_8)));
+            dlqRecord.headers().add(new RecordHeader("x-original-offset",
+                    Long.toString(record.offset()).getBytes(StandardCharsets.UTF_8)));
+            dlqRecord.headers().add(new RecordHeader("x-failure-exception",
+                    ex.getClass().getName().getBytes(StandardCharsets.UTF_8)));
+            kafkaTemplate.send(dlqRecord).get();
         }
     }
 }
