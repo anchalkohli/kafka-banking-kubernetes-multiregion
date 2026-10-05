@@ -36,6 +36,11 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://keycloak:8080/realms/banking}
+app:
+  replay:
+    # Used only for legacy DLQ records created before x-original-topic provenance was added.
+    # New DLQ records are replayed to the exact original RAW topic recorded in the DLQ header.
+    legacy-target-topic-pattern: ${APP_REPLAY_LEGACY_TARGET_TOPIC_PATTERN:raw-payments-%s}
 management:
   endpoint:
     health:
